@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -87,17 +86,7 @@ fn main() {
 }
 
 fn start_service() {
-    // Use a shared flag to control the service loop.
-    let running = Arc::new(Mutex::new(true));
-    let running_clone = Arc::clone(&running);
-
-    // Spawn a thread to simulate periodic service activity.
-    let activity_handle = thread::spawn(move || {
-        while *running_clone.lock().unwrap() {
-            println!("TonyDB service is active...");
-            thread::sleep(Duration::from_secs(5));
-        }
-    });
+    println!("TonyDB service is active...");
 
     // Main service loop to process commands.
     loop {
@@ -107,7 +96,6 @@ fn start_service() {
                 write_response("query executed".to_string());
             } else if command.trim() == "stop" {
                 println!("Stopping TonyDB service...");
-                *running.lock().unwrap() = false;
                 if std::path::Path::new(COMMAND_FILE).exists() {
                     fs::remove_file(COMMAND_FILE)
                         .expect("Failed to delete command file");
@@ -122,7 +110,6 @@ fn start_service() {
             thread::sleep(Duration::from_millis(100));
         }
     }
-    let _ = activity_handle.join();
 }
 
 fn send_command(command: String) {
