@@ -5,7 +5,7 @@ use std::iter::Peekable;
 pub enum Query {
     Select(SelectQuery),
     Insert(InsertQuery),
-    Update(UpdateQuery),
+    // Update(UpdateQuery),
     Delete(DeleteQuery),
 }
 
@@ -20,11 +20,11 @@ pub struct InsertQuery {
     pub values: Vec<String>,
 }
 
-#[derive(Debug)]
-pub struct UpdateQuery {
-    pub updates: Vec<String>,
-    pub where_clause: Option<Expression>,
-}
+// #[derive(Debug)]
+// pub struct UpdateQuery {
+//     pub updates: Vec<String>,
+//     pub where_clause: Option<Expression>,
+// }
 
 #[derive(Debug)]
 pub struct DeleteQuery {
@@ -55,7 +55,7 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Result<Query, String> {
     match tokens_iter.next() {
         Some(Token::Select) => parse_select_query(&mut tokens_iter),
         Some(Token::Insert) => parse_insert_query(&mut tokens_iter),
-        Some(Token::Update) => parse_update_query(&mut tokens_iter),
+        // Some(Token::Update) => parse_update_query(&mut tokens_iter),
         Some(Token::Delete) => parse_delete_query(&mut tokens_iter),
         _ => Err("Unsupported query type".to_string()),
     }
@@ -108,48 +108,48 @@ fn parse_insert_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Resul
     Ok(Query::Insert(InsertQuery { values }))
 }
 
-fn parse_update_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
-    if tokens.next() != Some(Token::Set) {
-        return Err("Expected SET after UPDATE".to_string());
-    }
+// fn parse_update_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
+//     if tokens.next() != Some(Token::Set) {
+//         return Err("Expected SET after UPDATE".to_string());
+//     }
 
-    let mut updates = Vec::new();
+//     let mut updates = Vec::new();
 
-    while let Some(token) = tokens.next() {
-        match token {
-            Token::Identifier(column) => {
-                if let Some(Token::Operator(op)) = tokens.next() {
-                    if op == "=" {
-                        if let Some(Token::StringLiteral(value)) = tokens.next() {
-                            updates.push(value);
-                        } else {
-                            return Err("Expected value after =".to_string());
-                        }
-                    } else {
-                        return Err("Expected = after column name".to_string());
-                    }
-                } else {
-                    return Err("Expected = after column name".to_string());
-                }
-            }
-            Token::Comma => continue,
-            Token::Where => break,
-            _ => return Err("Unexpected token in UPDATE query".to_string()),
-        }
-    }
+//     while let Some(token) = tokens.next() {
+//         match token {
+//             Token::Identifier(column) => {
+//                 if let Some(Token::Operator(op)) = tokens.next() {
+//                     if op == "=" {
+//                         if let Some(Token::StringLiteral(value)) = tokens.next() {
+//                             updates.push(value);
+//                         } else {
+//                             return Err("Expected value after =".to_string());
+//                         }
+//                     } else {
+//                         return Err("Expected = after column name".to_string());
+//                     }
+//                 } else {
+//                     return Err("Expected = after column name".to_string());
+//                 }
+//             }
+//             Token::Comma => continue,
+//             Token::Where => break,
+//             _ => return Err("Unexpected token in UPDATE query".to_string()),
+//         }
+//     }
 
-    let where_clause = if let Some(Token::Where) = tokens.peek() {
-        tokens.next(); // Consume WHERE
-        parse_expression(tokens)
-    } else {
-        None
-    };
+//     let where_clause = if let Some(Token::Where) = tokens.peek() {
+//         tokens.next(); // Consume WHERE
+//         parse_expression(tokens)
+//     } else {
+//         None
+//     };
 
-    Ok(Query::Update(UpdateQuery {
-        updates,
-        where_clause,
-    }))
-}
+//     Ok(Query::Update(UpdateQuery {
+//         updates,
+//         where_clause,
+//     }))
+// }
 
 fn parse_delete_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
 

@@ -1,5 +1,5 @@
 use crate::parser;
-use crate::parser::ast::{SelectQuery, InsertQuery, UpdateQuery, DeleteQuery};
+use crate::parser::ast::{SelectQuery, InsertQuery, DeleteQuery};
 
 pub fn execute_query(query: &str) -> &str {
     let parsed_query = parser::parse_query(&query).unwrap();
@@ -11,9 +11,9 @@ pub fn execute_query(query: &str) -> &str {
         parser::Query::Insert(insert_query) => {
             execute_insert(insert_query)
         },
-        parser::Query::Update(update_query) => {
-            execute_update(update_query)
-        },
+        // parser::Query::Update(update_query) => {
+        //     execute_update(update_query)
+        // },
         parser::Query::Delete(delete_query) => {
             execute_delete(delete_query)
         }
@@ -32,6 +32,6 @@ fn execute_delete(query: DeleteQuery) -> &'static str {
     "delete"
 }
 
-fn execute_update(query: UpdateQuery) -> &'static str {
-    "update"
-}
+// fn execute_update(query: UpdateQuery) -> &'static str {
+//     "update"
+// }

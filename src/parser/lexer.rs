@@ -2,7 +2,7 @@
 pub enum Token {
     Select,
     Insert,
-    Update,
+    // Update,
     Delete,
     Where,
     Values,
