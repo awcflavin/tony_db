@@ -1,8 +1,10 @@
 use clap::{Parser, Subcommand};
 use std::net::{TcpStream};
+use std::process::Command;
+use std::thread;
+use tony_db;
 
 mod client;
-mod listener;
 
 #[derive(Parser)]
 #[command(name = "TonyDB")]
@@ -27,31 +29,12 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init => {
-            if TcpStream::connect("127.0.0.1:12345").is_ok() {
-                println!("TonyDB service is already running.");
-                return;
-            }
-
-            #[cfg(target_os = "windows")]
-            {
-                use std::os::windows::process::CommandExt;
-                const DETACHED_PROCESS: u32 = 0x00000008;
-                let current_exe = std::env::current_exe().expect("Failed to get current exe");
-                let _child = std::process::Command::new(current_exe)
-                    .arg("run-service")
-                    .creation_flags(DETACHED_PROCESS)
-                    .spawn()
-                    .expect("Failed to spawn background service");
-                println!("TonyDB service started in background.");
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                unimplemented!("This service is implemented only for Windows.");
-            }
-        }
         Commands::RunService => {
-            start_service();
+            // hidden arg to start the service
+            tony_db::listener::start_server();
+        }
+        Commands::Init => {
+            start_background_service();
         }
         Commands::Query { query } => {
             send_command(&query);
@@ -62,9 +45,27 @@ fn main() {
     }
 }
 
-fn start_service() {
-    listener::main();
-    println!("TonyDB service is active...");
+fn start_background_service() {
+    
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x00000008; // detached process code
+        let current_exe = std::env::current_exe().expect("Failed to get current executable path");
+
+        Command::new(current_exe)
+            .arg("run-service")
+            .creation_flags(DETACHED_PROCESS)
+            .spawn()
+            .expect("Failed to start background service");
+
+        thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        unimplemented!("This service is implemented only for Windows.");
+    }
 }
 
 fn send_command(command: &String) {

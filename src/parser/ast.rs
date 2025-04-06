@@ -17,12 +17,12 @@ pub struct SelectQuery {
 
 #[derive(Debug)]
 pub struct InsertQuery {
-    pub values: Vec<(String, String)>,
+    pub values: Vec<String>,
 }
 
 #[derive(Debug)]
 pub struct UpdateQuery {
-    pub updates: Vec<(String, String)>,
+    pub updates: Vec<String>,
     pub where_clause: Option<Expression>,
 }
 
@@ -96,19 +96,11 @@ fn parse_insert_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Resul
     while let Some(token) = tokens.next() {
         match token {
             Token::ParenOpen => continue,
-            Token::Identifier(column) => {
-                if let Some(Token::Operator("=")) = tokens.next() {
-                    if let Some(Token::StringLiteral(value)) = tokens.next() {
-                        values.push((column, value));
-                    } else {
-                        return Err("Expected value after =".to_string());
-                    }
-                } else {
-                    return Err("Expected = after column name".to_string());
-                }
-            }
             Token::ParenClose => break,
             Token::Comma => continue,
+            Token::StringLiteral(some_string) => {
+                values.push(some_string.clone());
+            }
             _ => return Err("Unexpected token in INSERT query".to_string()),
         }
     }
@@ -126,11 +118,15 @@ fn parse_update_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Resul
     while let Some(token) = tokens.next() {
         match token {
             Token::Identifier(column) => {
-                if let Some(Token::Operator("=")) = tokens.next() {
-                    if let Some(Token::StringLiteral(value)) = tokens.next() {
-                        updates.push((column, value));
+                if let Some(Token::Operator(op)) = tokens.next() {
+                    if op == "=" {
+                        if let Some(Token::StringLiteral(value)) = tokens.next() {
+                            updates.push(value);
+                        } else {
+                            return Err("Expected value after =".to_string());
+                        }
                     } else {
-                        return Err("Expected value after =".to_string());
+                        return Err("Expected = after column name".to_string());
                     }
                 } else {
                     return Err("Expected = after column name".to_string());

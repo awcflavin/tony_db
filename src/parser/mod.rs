@@ -1,8 +1,8 @@
 mod lexer;
-mod ast;
+pub mod ast;
 
 use lexer::Lexer;
-use ast::Query;
+pub use ast::Query;
 
 /// Parses a SQL query string into a general `Query` structure.
 ///
@@ -20,6 +20,6 @@ pub fn parse_query(input: &str) -> Result<Query, String> {
         tokens.push(token);
     }
 
-    // Delegate the parsing of tokens to the AST module
+    // parse tokens using AST module
     ast::parse_tokens(tokens)
 }
