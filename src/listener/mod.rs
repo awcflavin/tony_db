@@ -21,6 +21,8 @@ fn handle_client(mut stream: TcpStream) {
 }
 
 pub fn start_server() {
+    let _db = storage::init_db();
+
     let listener = TcpListener::bind("127.0.0.1:12345")
                     .expect("Failed to bind port");
 
