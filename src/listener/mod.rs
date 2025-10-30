@@ -10,14 +10,15 @@ fn handle_client(mut stream: TcpStream) {
     if let Ok(size) = stream.read(&mut buffer) {
         let message = String::from_utf8_lossy(&buffer[..size]);
         println!("Received message {}", message);
-        let response = executor::execute_query(&message);
-        let _ = stream.write_all(response.as_bytes());
 
         if message.trim() == "stop" {
             let _ = stream.write_all(b"Stopping the server as requested.");
             println!("Stopping the server as requested.");
             std::process::exit(0);
         }
+
+        let response = executor::execute_query(&message);
+        let _ = stream.write_all(response.as_bytes());
     }
 }
 

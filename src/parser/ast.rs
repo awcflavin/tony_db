@@ -63,19 +63,32 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Result<Query, String> {
 
 fn parse_select_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
     let mut columns = Vec::new();
-
-    while let Some(token) = tokens.next() {
-        match token {
-            Token::Identifier(column) => columns.push(column),
-            Token::Comma => continue,
+    // peek to not consume 'where'
+    while let Some(token_ref) = tokens.peek() {
+        match token_ref {
+            Token::Identifier(_) => {
+                if let Some(Token::Identifier(column)) = tokens.next() {
+                    columns.push(column);
+                }
+            }
+            Token::Comma => {
+                tokens.next(); // consume comma
+                continue;
+            }
             Token::Where => break,
             _ => return Err("Unexpected token in SELECT query".to_string()),
         }
     }
 
+    // If a WHERE token is present, consume it and attempt to parse the
+    // expression. If parsing fails, return an explicit error instead of
+    // silently treating the WHERE as absent.
     let where_clause = if let Some(Token::Where) = tokens.peek() {
         tokens.next(); // Consume WHERE
-        parse_expression(tokens)
+        match parse_expression(tokens) {
+            Some(expr) => Some(expr),
+            None => return Err("Failed to parse WHERE expression".to_string()),
+        }
     } else {
         None
     };

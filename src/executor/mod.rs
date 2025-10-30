@@ -41,9 +41,13 @@ pub fn execute_query(query: &str) -> String {
                 Err(e) => format!("Execution error: {}", e),
             }
         },
-        // parser::Query::Insert(insert_query) => {
-        //     execute_insert(insert_query)
-        // },
+        parser::Query::Insert(insert_query) => {
+            match execute_insert(insert_query) {
+                Ok(QueryResult::Message(msg)) => msg,
+                Err(e) => format!("Execution error: {}", e),
+                _ => format!("Execution error: unexpected result from insert"),
+            }
+        },
         // parser::Query::Update(update_query) => {
         //     execute_update(update_query)
         // },
@@ -73,8 +77,25 @@ fn execute_select(query: SelectQuery) -> Result<QueryResult, String> {
     Ok(QueryResult::Rows(filtered_rows))
 }
 
-fn execute_insert(query: InsertQuery) -> &'static str {
-    "insert"
+fn execute_insert(query: InsertQuery) -> Result<QueryResult, String> {
+    let table_name = "default";
+
+    // validate column count
+    if query.values.len() != TABLE_COLUMNS.len() {
+        return Err(format!(
+            "Column count mismatch: expected {} values for columns {:?}, got {}",
+            TABLE_COLUMNS.len(), TABLE_COLUMNS, query.values.len()
+        ));
+    }
+
+    let mut storage = STORAGE.lock().map_err(|e| format!("Storage lock poisoned: {}", e))?;
+    let table = storage.entry(table_name.to_string()).or_insert_with(Vec::new);
+
+    // clone values into a row
+    let row: Vec<String> = query.values.into_iter().collect();
+    table.push(row);
+
+    Ok(QueryResult::Message("Inserted 1 row".to_string()))
 }
 
 fn execute_delete(query: DeleteQuery) -> &'static str {

@@ -27,37 +27,47 @@ impl Lexer {
     }
 
     pub fn next_token(&mut self) -> Option<Token> {
-        self.skip_whitespace();
-        if self.position >= self.input.len() {
-            return None;
-        }
+        // Loop so we can skip unknown characters (for example stray backslashes
+        // introduced by shell escaping) instead of returning None which would
+        // terminate tokenization early.
+        loop {
+            self.skip_whitespace();
+            if self.position >= self.input.len() {
+                return None;
+            }
 
-        let current_char = self.input.as_bytes()[self.position] as char;
+            let current_char = self.input.as_bytes()[self.position] as char;
 
-        match current_char {
-            ',' => {
-                self.position += 1;
-                Some(Token::Comma)
+            match current_char {
+                ',' => {
+                    self.position += 1;
+                    return Some(Token::Comma);
+                }
+                ';' => {
+                    self.position += 1;
+                    return Some(Token::Semicolon);
+                }
+                '(' => {
+                    self.position += 1;
+                    return Some(Token::ParenOpen);
+                }
+                ')' => {
+                    self.position += 1;
+                    return Some(Token::ParenClose);
+                }
+                '=' | '<' | '>' => {
+                    self.position += 1;
+                    return Some(Token::Operator(current_char.to_string()));
+                }
+                '"' | '\'' => return self.parse_string_literal(current_char),
+                _ if current_char.is_alphabetic() => return self.parse_identifier_or_keyword(),
+                // Unknown / unhandled characters (backslashes, stray escapes, etc.)
+                // will be skipped and tokenization continues.
+                _ => {
+                    self.position += 1;
+                    continue;
+                }
             }
-            ';' => {
-                self.position += 1;
-                Some(Token::Semicolon)
-            }
-            '(' => {
-                self.position += 1;
-                Some(Token::ParenOpen)
-            }
-            ')' => {
-                self.position += 1;
-                Some(Token::ParenClose)
-            }
-            '=' | '<' | '>' => {
-                self.position += 1;
-                Some(Token::Operator(current_char.to_string()))
-            }
-            '"' | '\'' => self.parse_string_literal(current_char),
-            _ if current_char.is_alphabetic() => self.parse_identifier_or_keyword(),
-            _ => None,
         }
     }
 
