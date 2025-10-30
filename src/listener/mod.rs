@@ -3,6 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 
 use crate::executor;
+use crate::storage;
 
 fn handle_client(mut stream: TcpStream) {
     let mut buffer = [0; 512];
@@ -21,8 +22,6 @@ fn handle_client(mut stream: TcpStream) {
 }
 
 pub fn start_server() {
-    let _db = storage::init_db();
-
     let listener = TcpListener::bind("127.0.0.1:12345")
                     .expect("Failed to bind port");
 
