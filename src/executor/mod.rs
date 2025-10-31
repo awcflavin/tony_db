@@ -98,9 +98,9 @@ fn execute_insert(query: InsertQuery) -> Result<QueryResult, String> {
     Ok(QueryResult::Message("Inserted 1 row".to_string()))
 }
 
-fn execute_delete(query: DeleteQuery) -> &'static str {
-    "delete"
-}
+// fn execute_delete(query: DeleteQuery) -> &'static str {
+//     "delete"
+// }
 
 // fn execute_update(query: UpdateQuery) -> &'static str {
 //     "update"
