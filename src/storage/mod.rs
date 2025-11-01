@@ -1,4 +1,5 @@
  mod memory;
+ mod tree;
 // use std::collections::HashMap;
 // use std::sync::{Arc, RwLock};
 // use once_cell::sync::Lazy;
