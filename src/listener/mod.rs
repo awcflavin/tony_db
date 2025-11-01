@@ -5,6 +5,10 @@ use std::thread;
 use crate::executor;
 use crate::storage;
 
+static EXECUTOR: once_cell::sync::Lazy<executor::Executor> = once_cell::sync::Lazy::new(|| {
+    executor::Executor::new()
+});
+
 fn handle_client(mut stream: TcpStream) {
     let mut buffer = [0; 512];
     if let Ok(size) = stream.read(&mut buffer) {
@@ -17,7 +21,7 @@ fn handle_client(mut stream: TcpStream) {
             std::process::exit(0);
         }
 
-        let response = executor::execute_query(&message);
+        let response = EXECUTOR.execute_query(&message);
         let _ = stream.write_all(response.as_bytes());
     }
 }

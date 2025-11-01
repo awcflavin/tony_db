@@ -1,22 +1,30 @@
 use crate::parser::lexer::Token;
 use std::iter::Peekable;
 
+
+// usage of all these commands on existing tables is like
+//  INSERT <table_name> VALUES (...)
+// Not regular SQL syntax where would do INSERT INTO.
+
 #[derive(Debug)]
 pub enum Query {
     Select(SelectQuery),
     Insert(InsertQuery),
     // Update(UpdateQuery),
     Delete(DeleteQuery),
+    Create(CreateQuery),
 }
 
 #[derive(Debug)]
 pub struct SelectQuery {
+    pub table_name: String,
     pub columns: Vec<String>,
     pub where_clause: Option<Expression>,
 }
 
 #[derive(Debug)]
 pub struct InsertQuery {
+    pub table_name: String,
     pub values: Vec<String>,
 }
 
@@ -28,7 +36,14 @@ pub struct InsertQuery {
 
 #[derive(Debug)]
 pub struct DeleteQuery {
+    pub table_name: String,
     pub where_clause: Option<Expression>,
+}
+
+#[derive(Debug)]
+pub struct CreateQuery {
+    pub table_name: String,
+    pub columns: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -57,18 +72,27 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Result<Query, String> {
         Some(Token::Insert) => parse_insert_query(&mut tokens_iter),
         // Some(Token::Update) => parse_update_query(&mut tokens_iter),
         Some(Token::Delete) => parse_delete_query(&mut tokens_iter),
+        Some(Token::Create) => parse_create_query(&mut tokens_iter),
         _ => Err("Unsupported query type".to_string()),
     }
 }
 
 fn parse_select_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
     let mut columns = Vec::new();
+    let mut table_name = String::new();
     // peek to not consume 'where'
     while let Some(token_ref) = tokens.peek() {
         match token_ref {
             Token::Identifier(_) => {
+                // just sets table name to first identifier found
+                if table_name.is_empty() {
+                    if let Some(Token::Identifier(name)) = tokens.next() {
+                        table_name = name;
+                    }
+                } else {
                 if let Some(Token::Identifier(column)) = tokens.next() {
-                    columns.push(column);
+                        columns.push(column);
+                    }
                 }
             }
             Token::Comma => {
@@ -94,12 +118,19 @@ fn parse_select_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Resul
     };
 
     Ok(Query::Select(SelectQuery {
+        table_name,
         columns,
         where_clause,
     }))
 }
 
 fn parse_insert_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
+    let table_name = if let Some(Token::Identifier(name)) = tokens.next() {
+        name
+    } else {
+        return Err("Expected table name after INSERT".to_string());
+    };
+
     if tokens.next() != Some(Token::Values) {
         return Err("Expected VALUES after INSERT".to_string());
     }
@@ -118,7 +149,7 @@ fn parse_insert_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Resul
         }
     }
 
-    Ok(Query::Insert(InsertQuery { values }))
+    Ok(Query::Insert(InsertQuery { table_name,values }))
 }
 
 // fn parse_update_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
@@ -165,7 +196,11 @@ fn parse_insert_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Resul
 // }
 
 fn parse_delete_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
-
+    let table_name = if let Some(Token::Identifier(name)) = tokens.next() {
+        name
+    } else {
+        return Err("Expected table name after DELETE".to_string());
+    };
     let where_clause = if let Some(Token::Where) = tokens.peek() {
         tokens.next(); // Consume WHERE
         parse_expression(tokens)
@@ -173,7 +208,35 @@ fn parse_delete_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Resul
         None
     };
 
-    Ok(Query::Delete(DeleteQuery { where_clause }))
+    Ok(Query::Delete(DeleteQuery { table_name, where_clause }))
+}
+
+fn parse_create_query(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Result<Query, String> {
+    // create should be like "CREATE table_name (col1, col2, ...)"
+    let table_name = if let Some(Token::Identifier(name)) = tokens.next() {
+        name
+    } else {
+        return Err("Expected table name after CREATE".to_string());
+    };
+    
+    if tokens.next() != Some(Token::ParenOpen) {
+        return Err(format!("Expected ( after table name {}", table_name));
+    }
+    let mut columns = Vec::new();
+    while let Some(token) = tokens.next() {
+        match token {
+            Token::Identifier(column) => {
+                columns.push(column);
+            }
+            Token::Comma => continue,
+            Token::ParenClose => break,
+            _ => return Err("Unexpected token in CREATE query".to_string()),
+        }
+    }
+    Ok(Query::Create(CreateQuery {
+        table_name,
+        columns,
+    }))
 }
 
 fn parse_expression(tokens: &mut Peekable<std::vec::IntoIter<Token>>) -> Option<Expression> {
