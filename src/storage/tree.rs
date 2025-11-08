@@ -56,12 +56,12 @@ impl Node {
 
         let mut children = Vec::new();
         if !is_leaf {
-            for _ in 0..key_count {
+            for _ in 0..key_count+1 { // +1 cos internal nodes have n+1 children for n keys
                 let id = u32::from_le_bytes([
-                    buf[offset],
-                    buf[offset + 1],
-                    buf[offset + 2],
-                    buf[offset + 3],
+                    content[offset],
+                    content[offset + 1],
+                    content[offset + 2],
+                    content[offset + 3],
                 ]);
                 offset += 4;
                 children.push(id);
@@ -160,7 +160,6 @@ impl BTree {
             if key > node.keys[next_index] {
                 next_index += 1;
             }
-            node.persist(&mut self.storage)?;   
         }
 
         let next_child = node.children[next_index];
@@ -189,7 +188,7 @@ impl BTree {
             parent.keys.insert(index, right.keys[0].clone()); // first key of right goes into parent
             parent.children.insert(index + 1, right.page_id);
         } else {
-            let mid = left.keys.len()+1 /2;
+            let mid = (left.keys.len()+1) /2;
             right.keys = left.keys.split_off(mid);
 
             right.children = left.children.split_off(mid + 1); // split off leaves the remainder in left
