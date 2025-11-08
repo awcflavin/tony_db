@@ -4,25 +4,23 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-const PAGE_SIZE: usize = 4096;
-const HEADER_SIZE: usize = 9; // 1 byte page type + 4 bytes next page + 2 bytes record count + 2 bytes free space
+pub const PAGE_SIZE: usize = 4096;
+pub const HEADER_SIZE: usize = 9; // 1 byte page type + 4 bytes next page + 2 bytes record count + 2 bytes free space
 
 // a page can be a header, contain data, be an index for tree search, or be free space
 #[derive(Debug, Clone, Copy)]
 pub enum PageType {
-    Header = 0,
-    Data = 1,
-    Index = 2,
-    Free = 3,
+    Data = 0,
+    Index = 1,
+    Free = 2,
 }
 
 impl From<u8> for PageType {
     fn from(value: u8) -> Self {
         match value {
-            0 => PageType::Header,
-            1 => PageType::Data,
-            2 => PageType::Index,
-            3 => PageType::Free,
+            0 => PageType::Data,
+            1 => PageType::Index,
+            2 => PageType::Free,
             _ => panic!("Unknown page type"),
         }
     }
@@ -130,12 +128,12 @@ impl Page {
     }
 }
 
-pub struct Storage {
+pub struct StorageEngine {
     file: File,
 }
 
 // manages pages in a single file
-impl Storage {
+impl StorageEngine {
     pub fn open(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let file = OpenOptions::new()
             .read(true)
@@ -149,25 +147,35 @@ impl Storage {
         (page_num as u64) * (PAGE_SIZE as u64)
     }
 
-    pub fn read_page(&mut self, page_num: u32) -> std::io::Result<Page> {
-        let mut buf = [0u8; PAGE_SIZE];
+    pub fn read_page(&mut self, page_num: u32, buf: &mut [u8; PAGE_SIZE]) -> std::io::Result<[u8; PAGE_SIZE]> {
         // ? propagates any error up, otherwise it will unwrap the io::Result Ok value and continue
         self.file.seek(SeekFrom::Start(Self::page_offset(page_num)))?;
-        self.file.read_exact(&mut buf)?;
-        Ok(Page::from_bytes(&buf))
+        self.file.read_exact(buf)?;
+        Ok(*buf)
     }
 
-    pub fn write_page(&mut self, page_num: u32, page: &Page) -> std::io::Result<()> {
-        let buf = page.to_bytes();
+    pub fn write_page(&mut self, page_num: u32, buf: & [u8; PAGE_SIZE]) -> std::io::Result<()> {
         self.file.seek(SeekFrom::Start(Self::page_offset(page_num)))?;
-        self.file.write_all(&buf)?;
+        self.file.write_all(buf)?;
+        self.file.flush()?;
         Ok(())
     }
 
     pub fn allocate_page(&mut self, page_type: PageType) -> std::io::Result<u32> {
         let page_num = (self.file.metadata()?.len() / PAGE_SIZE as u64) as u32;
         let page = Page::new(page_type);
-        self.write_page(page_num, &page)?;
-        Ok(page_num)
+        self.write_page(page_num, &mut page.to_bytes())?;
+        return Ok(page_num);
     }
+
+    pub fn close(self) -> std::io::Result<()> {
+        drop(self);
+        return Ok(());
+    }
+
+    pub fn create_table(&mut self, table_name: &str) -> std::io::Result<u32> {
+        self.allocate_page(PageType::Index)
+    }
+
+    
 }
