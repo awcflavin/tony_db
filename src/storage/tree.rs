@@ -1,11 +1,18 @@
 use crate::storage::storage::{StorageEngine, PageType, PAGE_SIZE, HEADER_SIZE};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RecordId {
+    pub page_id: u32,
+    pub slot: u32,
+}
+
 // these nodes are either leaf nodes or internal nodes
 // they store children that are gt and lt its keys
 struct Node {
     page_id: u32,
     is_leaf: bool,
     keys: Vec<String>,
+    rids: Vec<RecordId>, // tie tree leaf nodes to records
     children: Vec<u32>,
     next_leaf: u32, // for scans
 }
@@ -19,6 +26,7 @@ impl Node {
         Node {
             page_id,
             keys: Vec::new(),
+            rids: Vec::new(),
             children: Vec::new(),
             is_leaf: true,
             next_leaf: 0,
@@ -29,6 +37,7 @@ impl Node {
         Node {
             page_id,
             keys: Vec::new(),
+            rids: Vec::new(),
             children: Vec::new(),
             is_leaf: false,
             next_leaf: 0,
@@ -54,6 +63,7 @@ impl Node {
             offset += key_len;
         }
 
+        let mut rids = Vec::new();
         let mut children = Vec::new();
         if !is_leaf {
             for _ in 0..key_count+1 { // +1 cos internal nodes have n+1 children for n keys
@@ -66,12 +76,32 @@ impl Node {
                 offset += 4;
                 children.push(id);
             }
+        } else {
+            // one record per key
+            for _ in 0..key_count {
+                let page_id = u32::from_le_bytes([
+                    content[offset],
+                    content[offset + 1],
+                    content[offset + 2],
+                    content[offset + 3],
+                ]);
+                offset += 4;
+                let slot = u32::from_le_bytes([
+                    content[offset],
+                    content[offset + 1],
+                    content[offset + 2],
+                    content[offset + 3],
+                ]);
+                offset += 4;
+                rids.push(RecordId { page_id, slot } );
+            }
         }
 
         Ok(Self {
             page_id,
             is_leaf,
             keys,
+            rids,
             children,
             next_leaf,
         })
@@ -101,6 +131,13 @@ impl Node {
                 content[offset..offset + 4].copy_from_slice(&child.to_le_bytes()); // +4 cos u32
                 offset += 4;
             }
+        } else {
+            for rid in &self.rids {
+                content[offset..offset + 4].copy_from_slice(&rid.page_id.to_le_bytes());
+                offset += 4;
+                content[offset..offset + 4].copy_from_slice(&rid.slot.to_le_bytes());
+                offset += 4;
+            }
         }
 
         engine.write_page(self.page_id, &buf);
@@ -115,6 +152,7 @@ struct BTree {
     storage: StorageEngine,
     root: u32,
     column: String,
+    // add table here at some stage so can index multiple columns
 }
 
 impl BTree {
@@ -125,7 +163,7 @@ impl BTree {
         Ok(BTree {storage, root: root_page, column })
     }
 
-    fn insert(&mut self, key: String) {
+    fn insert(&mut self, key: String, rid: RecordId) -> std::io::Result<()> {
         let root = Node::load(&mut self.storage, self.root).unwrap();
         
         if root.keys.len() == MAX_KEYS {
@@ -137,15 +175,16 @@ impl BTree {
             self.root = new_root_page;
         }
 
-        self.insert_non_full(root.page_id, key);
+        return self.insert_non_full(root.page_id, key, rid);
     }
 
-    fn insert_non_full(&mut self, page_id: u32, key: String) -> std::io::Result<()> {
+    fn insert_non_full(&mut self, page_id: u32, key: String, rid: RecordId) -> std::io::Result<()> {
         let mut node = Node::load(&mut self.storage, page_id)?;
         if node.is_leaf {
             let pos = node.keys.binary_search(&key).unwrap_or_else(|e| e);
             node.keys.insert(pos, key);
-            node.persist(&mut self.storage).unwrap();
+            node.rids.insert(pos, rid);
+            node.persist(&mut self.storage)?;
             return Ok(());
         }
 
@@ -163,7 +202,7 @@ impl BTree {
         }
 
         let next_child = node.children[next_index];
-        self.insert_non_full(next_child, key)
+        return self.insert_non_full(next_child, key, rid)
 
     }
 
@@ -203,6 +242,32 @@ impl BTree {
         parent.persist(&mut self.storage)?;
         
         Ok(())
+    }
+
+    pub fn get(&mut self, key: &String) -> std::io::Result<Option<RecordId>> {
+        let mut pid = self.root;
+        loop {
+            let node = Node::load(&mut self.storage, pid)?;
+            let pos = node.keys.binary_search(key);
+
+            if node.is_leaf {
+                match pos {
+                    Ok(idx) => return Ok(Some(node.rids[idx])),
+                    Err(_) => return Ok(None),
+                }
+            } else {
+                pid = match pos {
+                    Ok(idx) => node.children[idx + 1],
+                    // err(idx) means idx is the first position where key could be inserted
+                    // example:
+                    // keys: [10, 20, 30]
+                    // children: [c0, c1, c2, c3]
+                    // key = 25 -> err(2) -> go to c2
+                    // c2 are elements >20 and <30
+                    Err(idx) => node.children[idx],
+                };
+            }
+        }
     }
 
 }
