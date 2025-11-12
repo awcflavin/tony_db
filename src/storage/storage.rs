@@ -2,25 +2,39 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::env;
+use crate::storage::heap::HeapPage;
+
+pub const DB_SUBPATH: &str = "data/tony.db";
+
+pub fn default_db_path() -> std::io::Result<PathBuf> {
+    let exe_dir = env::current_exe()?
+        .parent()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "executable has no parent dir"))?
+        .to_path_buf();
+    Ok(exe_dir.join(DB_SUBPATH))
+}
 
 pub const PAGE_SIZE: usize = 4096;
 pub const HEADER_SIZE: usize = 9; // 1 byte page type + 4 bytes next page + 2 bytes record count + 2 bytes free space
 
-// a page can be a header, contain data, be an index for tree search, or be free space
+// a page can be a header, contain data, be an index for tree search, be free space, or be a catalog for storing tables
 #[derive(Debug, Clone, Copy)]
 pub enum PageType {
-    Data = 0,
+    Heap = 0,
     Index = 1,
     Free = 2,
+    Catalog = 3,
 }
 
 impl From<u8> for PageType {
     fn from(value: u8) -> Self {
         match value {
-            0 => PageType::Data,
+            0 => PageType::Heap,
             1 => PageType::Index,
             2 => PageType::Free,
+            3 => PageType::Catalog,
             _ => panic!("Unknown page type"),
         }
     }
@@ -134,13 +148,18 @@ pub struct StorageEngine {
 
 // manages pages in a single file
 impl StorageEngine {
-    pub fn open(path: impl AsRef<Path>) -> std::io::Result<Self> {
+    pub fn open() -> std::io::Result<Self> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
-            .open(path)?;
+            .open(default_db_path().unwrap())?;
+
         Ok(Self { file })
+    }
+
+    pub fn file_len(&self) -> std::io::Result<u64> {
+        Ok(self.file.metadata()?.len())
     }
 
     fn page_offset(page_num: u32) -> u64 {
@@ -154,11 +173,21 @@ impl StorageEngine {
         Ok(*buf)
     }
 
+    pub fn read_page_header(&mut self, page_num: u32, buf: &mut [u8; HEADER_SIZE]) -> std::io::Result<[u8; HEADER_SIZE]> {
+        self.file.seek(SeekFrom::Start(Self::page_offset(page_num)))?;
+        self.file.read_exact(buf)?;
+        Ok(*buf)
+    }
+
     pub fn write_page(&mut self, page_num: u32, buf: & [u8; PAGE_SIZE]) -> std::io::Result<()> {
         self.file.seek(SeekFrom::Start(Self::page_offset(page_num)))?;
         self.file.write_all(buf)?;
         self.file.flush()?;
         Ok(())
+    }
+
+    pub fn find_or_allocate_heap_page(&mut self, _need_len: usize) -> std::io::Result<u32> {
+        todo!()
     }
 
     pub fn allocate_page(&mut self, page_type: PageType) -> std::io::Result<u32> {
@@ -168,13 +197,30 @@ impl StorageEngine {
         return Ok(page_num);
     }
 
+    pub fn allocate_heap_page(&mut self) -> std::io::Result<u32> {
+        let pid = self.allocate_page(PageType::Heap)?;
+        HeapPage::init_new(self, pid)?;
+        Ok(pid)
+    }
+
     pub fn close(self) -> std::io::Result<()> {
         drop(self);
         return Ok(());
     }
 
-    pub fn create_table(&mut self, table_name: &str) -> std::io::Result<u32> {
-        self.allocate_page(PageType::Index)
+    // to create a table create a root page & point it at a heap page head
+    // the heap head is where we traverse from to find space
+    // when record inserted, we get a record id and stick it in the BTree
+    pub fn create_table(&mut self) -> std::io::Result<u32> {
+        let root_id = self.allocate_page(PageType::Index)?;
+        let heap_head = self.allocate_heap_page()?;
+        let mut root_buf = [0u8; PAGE_SIZE];
+        let root_buf = self.read_page(root_id, &mut root_buf)?;
+
+        let mut root_page: Page = Page::from_bytes(&root_buf);
+        root_page.header.next_page = heap_head;
+        self.write_page(root_id, &root_page.to_bytes());
+        Ok(root_id)
     }
 
     

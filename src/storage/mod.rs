@@ -1,6 +1,7 @@
 mod storage;
 mod tree;
 mod heap;
+mod catalog;
 // use std::sync::{Arc, RwLock};
 // use once_cell::sync::Lazy;
 
