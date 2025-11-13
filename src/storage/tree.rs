@@ -1,4 +1,5 @@
-use crate::storage::storage::{StorageEngine, PageType, PAGE_SIZE, HEADER_SIZE};
+use crate::storage::storage::StorageEngine;
+use crate::storage::page::{PageType, PAGE_SIZE, HEADER_SIZE};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecordId {

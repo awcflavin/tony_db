@@ -1,5 +1,6 @@
 use std::io;
-use super::storage::{StorageEngine, Page, PAGE_SIZE, HEADER_SIZE, PageHeader, PageType};
+use super::storage::StorageEngine;
+use crate::storage::page::{Page, PAGE_SIZE, HEADER_SIZE, PageHeader, PageType};
 
 // catalog that stores the table names mapped to the root node for that table
 pub struct Catalog;
@@ -7,7 +8,6 @@ pub struct Catalog;
 impl Catalog {
     // create catalog page if file is empty
     pub fn init_if_missing(engine: &mut StorageEngine) -> io::Result<()> {
-
         if engine.file_len()? == 0 {
             let root_id = engine.allocate_page(PageType::Catalog)?;
             if root_id != 1 {
