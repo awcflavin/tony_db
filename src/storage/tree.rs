@@ -1,10 +1,10 @@
 use crate::storage::storage::StorageEngine;
-use crate::storage::page::{PageType, PAGE_SIZE, HEADER_SIZE};
+use crate::storage::page::{PageType, PageHeader, PAGE_SIZE, HEADER_SIZE};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecordId {
     pub page_id: u32,
-    pub slot: u32,
+    pub slot: u16,
 }
 
 // these nodes are either leaf nodes or internal nodes
@@ -22,7 +22,6 @@ const NODE_HDR_SIZE: usize = 1 + 2 + 4; // is_leaf + key_count + next_leaf
 const MAX_KEYS: usize = 4;
 
 impl Node {
-
     fn new_leaf(page_id: u32) -> Self {
         Node {
             page_id,
@@ -87,11 +86,9 @@ impl Node {
                     content[offset + 3],
                 ]);
                 offset += 4;
-                let slot = u32::from_le_bytes([
+                let slot = u16::from_le_bytes([
                     content[offset],
                     content[offset + 1],
-                    content[offset + 2],
-                    content[offset + 3],
                 ]);
                 offset += 4;
                 rids.push(RecordId { page_id, slot } );
@@ -111,6 +108,9 @@ impl Node {
     // persist this in the storage
     fn persist(&self, engine: &mut StorageEngine) -> std::io::Result<()> {
         let mut buf = [0u8; PAGE_SIZE];
+        let hdr = PageHeader::new(PageType::Index);
+        buf[..HEADER_SIZE].copy_from_slice(&hdr.to_bytes());
+
         let content = &mut buf[HEADER_SIZE..];
         content[0] = if self.is_leaf { 1 } else { 0 };
         let key_count = self.keys.len() as u16;
@@ -136,8 +136,8 @@ impl Node {
             for rid in &self.rids {
                 content[offset..offset + 4].copy_from_slice(&rid.page_id.to_le_bytes());
                 offset += 4;
-                content[offset..offset + 4].copy_from_slice(&rid.slot.to_le_bytes());
-                offset += 4;
+                content[offset..offset + 2].copy_from_slice(&rid.slot.to_le_bytes());
+                offset += 2;
             }
         }
 
