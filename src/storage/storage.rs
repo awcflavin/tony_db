@@ -6,9 +6,10 @@ use std::path::{Path, PathBuf};
 use std::env;
 use crate::storage::page::{self, HEADER_SIZE, HEAP_HEADER_SIZE, HeapPage, HeapPageHeader, PAGE_SIZE, Page, PageHeader, PageType, SLOT_ENTRY_SIZE, SlotEntry};
 
-pub const DB_SUBPATH: &str = "data/tony.db";
+pub const DB_SUBPATH: &str = "tony.db";
 
 pub fn default_db_path() -> std::io::Result<PathBuf> {
+    println!("getting the default db path");
     let exe_dir = env::current_exe()?
         .parent()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "executable has no parent dir"))?
@@ -23,13 +24,27 @@ pub struct StorageEngine {
 // manages pages in a single file
 impl StorageEngine {
     pub fn open() -> std::io::Result<Self> {
+        println!("opening file at path {}", default_db_path().unwrap().to_str().unwrap());
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .open(default_db_path().unwrap())?;
 
+        println!("Opened file successfully");
+
         Ok(Self { file })
+    }
+
+    pub fn wipe() -> std::io::Result<bool> {
+        println!("deleting file...");
+        let path = default_db_path()?;
+        if Path::new(&path).exists() {
+            std::fs::remove_file(path)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     pub fn file_len(&self) -> std::io::Result<u64> {

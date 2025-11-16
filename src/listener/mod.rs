@@ -3,7 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 
 use crate::executor;
-use crate::storage;
+use crate::storage::storage::{self, StorageEngine};
 
 static EXECUTOR: once_cell::sync::Lazy<executor::Executor> = once_cell::sync::Lazy::new(|| {
     executor::Executor::new()
@@ -18,6 +18,7 @@ fn handle_client(mut stream: TcpStream) {
         if message.trim() == "stop" {
             let _ = stream.write_all(b"Stopping the server as requested.");
             println!("Stopping the server as requested.");
+            let _ = StorageEngine::wipe().map_err(|e| format!("Failed to delete file at path {} with error {}", storage::default_db_path().unwrap().to_str().unwrap(), e));
             std::process::exit(0);
         }
 

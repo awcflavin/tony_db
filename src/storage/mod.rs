@@ -1,7 +1,7 @@
-mod storage;
-mod tree;
-mod catalog;
-mod page;
+pub mod storage;
+pub mod tree;
+pub mod catalog;
+pub mod page;
 // use std::sync::{Arc, RwLock};
 // use once_cell::sync::Lazy;
 

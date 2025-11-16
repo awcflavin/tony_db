@@ -153,7 +153,6 @@ struct BTree {
     storage: StorageEngine,
     root: u32,
     column: String,
-    // add table here at some stage so can index multiple columns
 }
 
 impl BTree {

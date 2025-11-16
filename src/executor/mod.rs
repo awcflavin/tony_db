@@ -1,5 +1,7 @@
 use crate::parser;
 use crate::parser::ast::{Query, SelectQuery, InsertQuery, DeleteQuery, CreateQuery, Expression};
+use crate::storage::storage::StorageEngine;
+use crate::storage::catalog::Catalog;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -156,20 +158,14 @@ impl Executor {
 
     fn execute_create(&self, query: CreateQuery) -> Result<QueryResult, String> {
         let table_name = query.table_name;
-
-        let mut storage = self.storage.lock().map_err(|e| format!("Storage lock poisoned: {}", e))?;
-        if storage.contains_key(&table_name) {
+        let mut engine = StorageEngine::open().unwrap();
+        Catalog::init_if_missing(&mut engine).map_err(|e| format!("Failed to create table: {}", e))?;
+        
+        if Catalog::table_exists(&mut engine, &table_name).unwrap() {
             return Err(format!("Table '{}' already exists", table_name));
         }
-
-        let new_table = Table {
-            name: table_name.clone(),
-            columns: query.columns,
-            rows: Vec::new(),
-        };
-
-        storage.insert(table_name.clone(), new_table);
-
+        
+        Catalog::add_table(&mut engine, &table_name, &query.columns).map_err(|e| format!("Failed to create table: {}", e))?;
         Ok(QueryResult::Message(format!("Table '{}' created", table_name)))
     }
 
